@@ -57,13 +57,15 @@ class Agendamento(BaseModel):
     medico_id: int
     dia: datetime.date
     horario: datetime.time  # HH:MM
+    tema: str
 
 # DB Connection
 conn = pymysql.connect(
-    host="localhost",
+    host="switchback.proxy.rlwy.net",
+    port=51116,
     user="root",
-    password="",
-    database="cademex",
+    password="BPsqXFQeAoPHcuLgLJgmClPboGYmQoVc",
+    database="railway",
     cursorclass=pymysql.cursors.DictCursor
 )
 cursor = conn.cursor()
@@ -218,6 +220,44 @@ def atualizar_horarios(medico_id: int, horarios: dict = Body(...)):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao atualizar horários: {str(e)}")
+    
+@app.get("/agendamentos/{medico_id}")
+def listar_agendamentos_medico(medico_id: int):
+        try:
+            cursor.execute("""
+                SELECT a.id, 
+                    a.nome AS nome_paciente, 
+                    a.medico_id, 
+                    a.dia, 
+                    a.horario,
+                    m.nome AS nome_medico
+                FROM agendamento a
+                LEFT JOIN medicos m ON a.medico_id = m.id
+                WHERE a.medico_id = %s
+                ORDER BY a.dia DESC, a.horario DESC
+                LIMIT 1
+            """, (medico_id,))
+            agendamento = cursor.fetchone()
+
+            if not agendamento:
+                raise HTTPException(status_code=404, detail="Nenhum agendamento encontrado para este médico.")
+
+            # Converte horário para string
+            horario = agendamento["horario"]
+
+            if isinstance(horario, (datetime.time, datetime.datetime)):
+                agendamento["horario"] = horario.strftime("%H:%M")
+            elif isinstance(horario, int):  # quando vem em segundos
+                horas = horario // 3600
+                minutos = (horario % 3600) // 60
+                agendamento["horario"] = f"{horas:02d}:{minutos:02d}"
+            else:
+                agendamento["horario"] = str(horario)  # fallback p/ string
+
+            return agendamento
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Erro ao buscar agendamento: {str(e)}")
+
 
 
 @app.post("/agendamentos")
@@ -226,7 +266,7 @@ def agendar_visita_completa(ag: Agendamento):
         # Verifica se já existe agendamento para o mesmo médico, dia e horário
         cursor.execute("""
             SELECT * FROM agendamento 
-            WHERE medico_id = %s AND dia = %s AND horario = %s
+            WHERE medico_id = %s AND dia = %s AND horario = %s 
         """, (ag.medico_id, ag.dia, ag.horario))
         
         existente = cursor.fetchone()
@@ -235,9 +275,9 @@ def agendar_visita_completa(ag: Agendamento):
 
         # Caso não exista, faz o agendamento
         cursor.execute("""
-            INSERT INTO agendamento (nome, medico_id, dia, horario)
-            VALUES (%s, %s, %s, %s)
-        """, (ag.nome, ag.medico_id, ag.dia, ag.horario))
+            INSERT INTO agendamento (nome, medico_id, dia, horario, tema)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (ag.nome, ag.medico_id, ag.dia, ag.horario, ag.tema))
         
         conn.commit()
         return {"mensagem": "Agendamento realizado com sucesso"}
@@ -257,7 +297,7 @@ def listar_agendamentos():
                    a.nome AS nome_paciente, 
                    a.medico_id, 
                    a.dia, 
-                   a.horario, 
+                   a.horario,
                    m.nome AS nome_medico
             FROM agendamento a
             LEFT JOIN medicos m ON a.medico_id = m.id
