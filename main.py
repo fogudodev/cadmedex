@@ -100,12 +100,12 @@ def login(usuario: Usuario):
 def criar_medico(medico: Medico):
     cursor.execute("""
         INSERT INTO medicos 
-        (nome, crm, especialidade, cbo, tipo_rua, endereco, numero, cep, tipo_bairro, bairro, email, telefone)
+        (nome, crm, especialidade, cbo, tipo_de_rua, endereco, numero, cep, tipo_de_bairro, bairro, email, telefone)
         VALUES (%s, %s, %s, %s, %s, %s, %s, '', %s, %s, %s, %s)
     """, (
         medico.nome, medico.crm, medico.especialidade, medico.cbo,
-        medico.tipo_rua, medico.endereco, medico.numero,
-        medico.tipo_bairro, medico.bairro, medico.email, medico.telefone
+        medico.tipo_de_rua, medico.endereco, medico.numero,
+        medico.tipo_de_bairro, medico.bairro, medico.email, medico.telefone
     ))
     conn.commit()
     return {"mensagem": "Médico cadastrado com sucesso"}
@@ -333,6 +333,7 @@ def deletar_agendamento(id: int):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao excluir: {str(e)}")
+
 
 
 
