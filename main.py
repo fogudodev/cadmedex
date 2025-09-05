@@ -31,12 +31,13 @@ class Medico(BaseModel):
     especialidade: str
     cbo: str
     tipo_rua: str
+    tipo_bairro: str
     endereco: str
     numero: str
-    tipo_bairro: str
-    bairro: str
+    cep: str
     email: Optional[str] = None
     telefone: str
+    bairro: str
 
 class Visita(BaseModel):
     medico_id: int
@@ -332,6 +333,7 @@ def deletar_agendamento(id: int):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao excluir: {str(e)}")
+
 
 
 
