@@ -18,7 +18,7 @@ app = FastAPI()
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://cadmedex.onrender.com/"],
+    allow_origins=["https://gleeful-sawine-1cda99.netlify.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -332,6 +332,7 @@ def deletar_agendamento(id: int):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao excluir: {str(e)}")
+
 
 
 
