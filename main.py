@@ -101,7 +101,7 @@ def criar_medico(medico: Medico):
     cursor.execute("""
         INSERT INTO medicos 
         (nome, crm, especialidade, cbo, tipo_de_rua, endereco, numero, cep, tipo_de_bairro, bairro, email, telefone, cad_x)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, '', %s, %s, %s, %s, 1)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
     """, (
         medico.nome, medico.crm, medico.especialidade, medico.cbo,
         medico.tipo_de_rua, medico.endereco, medico.numero,
@@ -333,6 +333,7 @@ def deletar_agendamento(id: int):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao excluir: {str(e)}")
+
 
 
 
