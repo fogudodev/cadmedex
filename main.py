@@ -333,12 +333,16 @@ def listar_agendamentos():
 @app.delete("/agendamentos/{id}")
 def deletar_agendamento(id: int):
     try:
+        # primeiro remove reagendamentos ligados
+        cursor.execute("DELETE FROM reagendamentos WHERE agendamento_id = %s", (id,))
+        # depois remove o agendamento
         cursor.execute("DELETE FROM agendamento WHERE id = %s", (id,))
         conn.commit()
         return {"mensagem": "Agendamento excluído com sucesso"}
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao excluir: {str(e)}")
+
 
 
 
@@ -364,6 +368,7 @@ def reagendar_consulta(reag: Reagendamento):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao reagendar: {str(e)}")
+
 
 
 
