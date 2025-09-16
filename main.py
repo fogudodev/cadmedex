@@ -59,6 +59,12 @@ class Agendamento(BaseModel):
     dia: datetime.date
     horario: datetime.time  # HH:MM
     tema: str
+    
+class Reagendamento(BaseModel):
+    agendamento_id: int
+    motivo: str
+    nova_data: datetime.date
+    novo_horario: datetime.time
 
 # DB Connection
 conn = pymysql.connect(
@@ -101,7 +107,7 @@ def criar_medico(medico: Medico):
     cursor.execute("""
         INSERT INTO medicos 
         (nome, crm, especialidade, cbo, tipo_de_rua, endereco, numero, cep, tipo_de_bairro, bairro, email, telefone, cad_x)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, '', %s, %s, %s, %s, 1)
     """, (
         medico.nome, medico.crm, medico.especialidade, medico.cbo,
         medico.tipo_de_rua, medico.endereco, medico.numero,
@@ -337,9 +343,27 @@ def deletar_agendamento(id: int):
 
 
 
+@app.post("/reagendar")
+def reagendar_consulta(reag: Reagendamento):
+    try:
+        # 1. Inserir o reagendamento na nova tabela para manter o histórico
+        cursor.execute("""
+            INSERT INTO reagendamentos (agendamento_id, motivo, nova_data, novo_horario)
+            VALUES (%s, %s, %s, %s)
+        """, (reag.agendamento_id, reag.motivo, reag.nova_data, reag.novo_horario))
 
+        # 2. Atualizar o agendamento original com a nova data e horário
+        cursor.execute("""
+            UPDATE agendamento
+            SET dia = %s, horario = %s
+            WHERE id = %s
+        """, (reag.nova_data, reag.novo_horario, reag.agendamento_id))
 
-
+        conn.commit()
+        return {"mensagem": "Agendamento reagendado com sucesso."}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao reagendar: {str(e)}")
 
 
 
