@@ -10,6 +10,7 @@ import requests
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
+from fastapi import Depends
 
 GOOGLE_MAPS_API_KEY = "AIzaSyCwK9iIX8FTqZPXpR_of-vKB52CccKkCU8"
 
@@ -65,6 +66,11 @@ class Reagendamento(BaseModel):
     motivo: str
     nova_data: datetime.date
     novo_horario: datetime.time
+    
+class StatusTrabalho(BaseModel):
+    usuario_id: int
+    status: str  # "trabalhando" ou "ausente"
+    motivo: Optional[str] = None
 
 # DB Connection
 conn = pymysql.connect(
@@ -373,5 +379,28 @@ def reagendar_consulta(reag: Reagendamento):
 
 
 
+@app.post("/status")
+def registrar_status(status: StatusTrabalho):
+    agora = datetime.datetime.now()
+    cursor.execute("""
+        INSERT INTO usuario_status (usuario_id, status, motivo, created_at)
+        VALUES (%s, %s, %s, %s)
+    """, (status.usuario_id, status.status, status.motivo, agora))
+    conn.commit()
+    return {"mensagem": "Status registrado", "status": status.status, "hora": agora}
+
+@app.get("/status/{usuario_id}")
+def ultimo_status(usuario_id: int):
+    cursor.execute("""
+        SELECT status, motivo, created_at
+        FROM usuario_status
+        WHERE usuario_id=%s
+        ORDER BY created_at DESC
+        LIMIT 1
+    """, (usuario_id,))
+    status = cursor.fetchone()
+    if not status:
+        return {"status": "nenhum registro"}
+    return status
 
 
