@@ -104,17 +104,19 @@ def login(usuario: Usuario):
 
 @app.post("/medicos")
 def criar_medico(medico: Medico):
+    agora = datetime.datetime.now()  # pega data e hora atuais
     cursor.execute("""
         INSERT INTO medicos 
-        (nome, crm, especialidade, cbo, tipo_de_rua, endereco, numero, cep, tipo_de_bairro, bairro, email, telefone, cad_x)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, '', %s, %s, %s, %s, 1)
+        (nome, crm, especialidade, cbo, tipo_de_rua, endereco, numero, cep, tipo_de_bairro, bairro, email, telefone, cad_x, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, %s)
     """, (
         medico.nome, medico.crm, medico.especialidade, medico.cbo,
         medico.tipo_de_rua, medico.endereco, medico.numero,
-        medico.tipo_de_bairro, medico.bairro, medico.email, medico.telefone
+        medico.cep, medico.tipo_de_bairro, medico.bairro,
+        medico.email, medico.telefone, agora
     ))
     conn.commit()
-    return {"mensagem": "Médico cadastrado com sucesso"}
+    return {"mensagem": "Médico cadastrado com sucesso", "created_at": agora}
 
 @app.get("/medicos")
 def listar_medicos():
@@ -368,6 +370,7 @@ def reagendar_consulta(reag: Reagendamento):
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao reagendar: {str(e)}")
+
 
 
 
