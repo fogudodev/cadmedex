@@ -132,6 +132,16 @@ def agendar_visita(visita: Visita):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao agendar visita: {str(e)}")
 
+@app.put("/visitas/{id}")
+def atualizar_visita(id: int, visita: Visita):
+    cursor.execute("""
+        UPDATE visitas 
+        SET medico_id=%s, data_hora=%s, status=%s, tema=%s 
+        WHERE id=%s
+    """, (visita.medico_id, visita.data_hora, visita.status, visita.tema, id))
+    conn.commit()
+    return {"mensagem": "Visita atualizada com sucesso"}
+
 @app.get("/visitas")
 def listar_visitas():
     cursor.execute("""
@@ -166,13 +176,13 @@ def listar_medicos_com_horarios():
             dt = visita["data_hora"]
 
             if dt is None:
-                continue  # pula visitas sem data_hora
+                continue
 
             if isinstance(dt, str):
                 try:
                     dt = datetime.datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
                 except:
-                    continue  # ignora datas inválidas
+                    continue
 
             dia_nome = dias_map.get(dt.weekday(), "Seg")
             horarios_por_medico[medico_id][dia_nome].append(dt.strftime("%H:%M"))
@@ -188,4 +198,164 @@ def listar_medicos_com_horarios():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao buscar médicos com horários: {str(e)}")
 
-# --- Continue com as demais rotas aqui (agendamentos, reagendamentos, status, etc) ---
+@app.put("/medicos/{medico_id}/horarios")
+def atualizar_horarios(medico_id: int, horarios: dict = Body(...)):
+    try:
+        dias_semana_map = {"Seg": 0, "Ter": 1, "Qua": 2, "Qui": 3, "Sex": 4, "Sáb": 5, "Dom": 6}
+        hoje = datetime.datetime.today()
+
+        for dia, horarios_lista in horarios.items():
+            for horario_str in horarios_lista:
+                dia_semana = dias_semana_map.get(dia, 0)
+                dias_ate_dia = (dia_semana - hoje.weekday() + 7) % 7
+                data_proxima = hoje + datetime.timedelta(days=dias_ate_dia)
+                hora_min = datetime.datetime.strptime(horario_str, "%H:%M").time()
+                data_hora = datetime.datetime.combine(data_proxima, hora_min)
+
+                cursor.execute("""
+                    SELECT id FROM visitas 
+                    WHERE medico_id=%s AND data_hora=%s
+                """, (medico_id, data_hora))
+                existe = cursor.fetchone()
+
+                if not existe:
+                    cursor.execute("""
+                        INSERT INTO visitas (medico_id, data_hora, status)
+                        VALUES (%s, %s, %s)
+                    """, (medico_id, data_hora, "confirmado"))
+
+        conn.commit()
+        return {"mensagem": "Horários atualizados com sucesso"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar horários: {str(e)}")
+
+@app.get("/agendamentos/{medico_id}")
+def listar_agendamentos_medico(medico_id: int):
+    try:
+        cursor.execute("""
+            SELECT a.id, a.nome AS nome_paciente, a.medico_id, a.dia, a.horario, m.nome AS nome_medico
+            FROM agendamento a
+            LEFT JOIN medicos m ON a.medico_id = m.id
+            WHERE a.medico_id = %s
+            ORDER BY a.dia DESC, a.horario DESC
+            LIMIT 1
+        """, (medico_id,))
+        agendamento = cursor.fetchone()
+
+        if not agendamento:
+            raise HTTPException(status_code=404, detail="Nenhum agendamento encontrado para este médico.")
+
+        horario = agendamento["horario"]
+        if isinstance(horario, (datetime.time, datetime.datetime)):
+            agendamento["horario"] = horario.strftime("%H:%M")
+        elif isinstance(horario, int):
+            horas = horario // 3600
+            minutos = (horario % 3600) // 60
+            agendamento["horario"] = f"{horas:02d}:{minutos:02d}"
+        else:
+            agendamento["horario"] = str(horario)
+
+        return agendamento
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao buscar agendamento: {str(e)}")
+
+@app.post("/agendamentos")
+def agendar_visita_completa(ag: Agendamento):
+    try:
+        cursor.execute("""
+            SELECT * FROM agendamento 
+            WHERE medico_id = %s AND dia = %s AND horario = %s 
+        """, (ag.medico_id, ag.dia, ag.horario))
+        existente = cursor.fetchone()
+        if existente:
+            raise HTTPException(status_code=409, detail="Já existe um agendamento para esse médico neste dia e horário.")
+
+        cursor.execute("""
+            INSERT INTO agendamento (nome, medico_id, dia, horario, tema)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (ag.nome, ag.medico_id, ag.dia, ag.horario, ag.tema))
+        conn.commit()
+        return {"mensagem": "Agendamento realizado com sucesso"}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao agendar: {str(e)}")
+
+@app.get("/agendamentos")
+def listar_agendamentos():
+    try:
+        cursor.execute("""
+            SELECT a.id, a.nome AS nome_paciente, a.medico_id, a.dia, a.horario, m.nome AS nome_medico
+            FROM agendamento a
+            LEFT JOIN medicos m ON a.medico_id = m.id
+            ORDER BY a.dia DESC, a.horario DESC
+        """)
+        agendamentos = cursor.fetchall()
+
+        for ag in agendamentos:
+            horario = ag["horario"]
+            if isinstance(horario, int):
+                horas = horario // 3600
+                minutos = (horario % 3600) // 60
+                ag["horario"] = f"{horas:02d}:{minutos:02d}"
+            elif isinstance(horario, datetime.time):
+                ag["horario"] = horario.strftime("%H:%M")
+        return agendamentos
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao buscar agendamentos: {str(e)}")
+
+@app.delete("/agendamentos/{id}")
+def deletar_agendamento(id: int):
+    try:
+        cursor.execute("DELETE FROM reagendamentos WHERE agendamento_id = %s", (id,))
+        cursor.execute("DELETE FROM agendamento WHERE id = %s", (id,))
+        conn.commit()
+        return {"mensagem": "Agendamento excluído com sucesso"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao excluir: {str(e)}")
+
+@app.post("/reagendar")
+def reagendar_consulta(reag: Reagendamento):
+    try:
+        cursor.execute("""
+            INSERT INTO reagendamentos (agendamento_id, motivo, nova_data, novo_horario)
+            VALUES (%s, %s, %s, %s)
+        """, (reag.agendamento_id, reag.motivo, reag.nova_data, reag.novo_horario))
+
+        cursor.execute("""
+            UPDATE agendamento
+            SET dia = %s, horario = %s
+            WHERE id = %s
+        """, (reag.nova_data, reag.novo_horario, reag.agendamento_id))
+        conn.commit()
+        return {"mensagem": "Agendamento reagendado com sucesso."}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao reagendar: {str(e)}")
+
+@app.post("/status")
+def registrar_status(status: StatusTrabalho):
+    agora = datetime.datetime.now()
+    cursor.execute("""
+        INSERT INTO usuario_status (usuario_id, status, motivo, created_at)
+        VALUES (%s, %s, %s, %s)
+    """, (status.usuario_id, status.status, status.motivo, agora))
+    conn.commit()
+    return {"mensagem": "Status registrado", "status": status.status, "hora": agora}
+
+@app.get("/status/{usuario_id}")
+def ultimo_status(usuario_id: int):
+    cursor.execute("""
+        SELECT status, motivo, created_at
+        FROM usuario_status
+        WHERE usuario_id=%s
+        ORDER BY created_at DESC
+        LIMIT 1
+    """, (usuario_id,))
+    status = cursor.fetchone()
+    if not status:
+        return {"status": "nenhum registro"}
+    return status
