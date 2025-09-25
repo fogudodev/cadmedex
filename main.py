@@ -19,7 +19,10 @@ app = FastAPI()
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://gleeful-sawine-1cda99.netlify.app"],
+    allow_origins=[ "https://gleeful-sawine-1cda99.netlify.app",  
+        "https://cadmedex.onrender.com",              
+        "http://localhost:3000",                     
+        "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -402,5 +405,6 @@ def ultimo_status(usuario_id: int):
     if not status:
         return {"status": "nenhum registro"}
     return status
+
 
 
