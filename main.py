@@ -181,29 +181,50 @@ def listar_visitas():
 
 @app.get("/medicos-com-horarios")
 def listar_medicos_com_horarios():
-    cursor.execute("SELECT * FROM medicos")
-    medicos = cursor.fetchall()
+    try:
+        cursor.execute("SELECT * FROM medicos")
+        medicos = cursor.fetchall()
 
-    cursor.execute("SELECT medico_id, data_hora FROM visitas ORDER BY medico_id, data_hora")
-    visitas = cursor.fetchall()
+        cursor.execute("SELECT medico_id, data_hora FROM visitas ORDER BY medico_id, data_hora")
+        visitas = cursor.fetchall()
 
-    dias_map = {0: "Seg", 1: "Ter", 2: "Qua", 3: "Qui", 4: "Sex", 5: "Sáb", 6: "Dom"}
-    horarios_por_medico = defaultdict(lambda: defaultdict(list))
+        dias_map = {0: "Seg", 1: "Ter", 2: "Qua", 3: "Qui", 4: "Sex", 5: "Sáb", 6: "Dom"}
+        horarios_por_medico = defaultdict(lambda: defaultdict(list))
 
-    for visita in visitas:
-        medico_id = visita["medico_id"]
-        dt = visita["data_hora"]
-        dia_nome = dias_map.get(dt.weekday(), "Seg")
-        horarios_por_medico[medico_id][dia_nome].append(dt.strftime("%H:%M"))
+        for visita in visitas:
+            medico_id = visita["medico_id"]
+            dt = visita["data_hora"]
 
-    resultado = []
-    for medico in medicos:
-        m_id = medico["id"]
-        medico_dict = dict(medico)
-        medico_dict["horarios"] = horarios_por_medico.get(m_id, {})
-        resultado.append(medico_dict)
+            # 🔍 Debug - log no console do Render
+            print("DEBUG visita:", visita)
 
-    return JSONResponse(content=resultado)
+            # Se for string → tentar converter
+            if isinstance(dt, str):
+                try:
+                    dt = datetime.datetime.fromisoformat(dt)
+                except Exception:
+                    continue  # ignora registros inválidos
+
+            # Se for None → pula
+            if not dt:
+                continue
+
+            dia_nome = dias_map.get(dt.weekday(), "Seg")
+            horarios_por_medico[medico_id][dia_nome].append(dt.strftime("%H:%M"))
+
+        resultado = []
+        for medico in medicos:
+            m_id = medico["id"]
+            medico_dict = dict(medico)
+            medico_dict["horarios"] = horarios_por_medico.get(m_id, {})
+            resultado.append(medico_dict)
+
+        return JSONResponse(content=resultado)
+
+    except Exception as e:
+        print("ERRO /medicos-com-horarios:", str(e))  # log pro Render
+        raise HTTPException(status_code=500, detail=f"Erro em /medicos-com-horarios: {str(e)}")
+
 
 
 @app.put("/medicos/{medico_id}/horarios")
@@ -405,6 +426,7 @@ def ultimo_status(usuario_id: int):
     if not status:
         return {"status": "nenhum registro"}
     return status
+
 
 
 
