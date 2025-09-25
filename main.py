@@ -205,11 +205,19 @@ def listar_medicos_com_horarios():
         dias_map = {0: "Seg", 1: "Ter", 2: "Qua", 3: "Qui", 4: "Sex", 5: "Sáb", 6: "Dom"}
         horarios_por_medico = defaultdict(lambda: defaultdict(list))
 
-        for visita in visitas:
-            medico_id = visita["medico_id"]
-            dt = visita["data_hora"]
-            dia_nome = dias_map.get(dt.weekday(), "Seg")
-            horarios_por_medico[medico_id][dia_nome].append(dt.strftime("%H:%M"))
+for visita in visitas:
+    medico_id = visita["medico_id"]
+    dt = visita["data_hora"]
+
+    if dt is None:
+        continue  # pula visitas sem data_hora
+
+    if isinstance(dt, str):
+        dt = datetime.datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
+
+    dia_nome = dias_map.get(dt.weekday(), "Seg")
+    horarios_por_medico[medico_id][dia_nome].append(dt.strftime("%H:%M"))
+
 
         resultado = []
         for medico in medicos:
@@ -410,3 +418,4 @@ def ultimo_status(usuario_id: int):
         return status
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao buscar status: {str(e)}")
+
