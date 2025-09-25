@@ -1,6 +1,6 @@
-fastapi==0.109.0
+fastapi==0.95.2
 uvicorn[standard]==0.23.2
 pymysql==1.1.1
 requests==2.31.0
-pydantic==2.6.0
-cryptography>=40.0.0
+pydantic==1.10.12
+cryptography==41.0.3
